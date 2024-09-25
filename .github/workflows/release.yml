@@ -1,0 +1,47 @@
+---
+name: build
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Determine Go version from go.mod
+        run: echo "GO_VERSION=$(grep "go 1." go.mod | cut -d " " -f 2)" >> $GITHUB_ENV
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Build changelog from PRs with labels
+        id: build_changelog
+        uses: mikepenz/release-changelog-builder-action@v5
+        with:
+          configuration: ".github/changelog-configuration.json"
+          ignorePreReleases: "${{ !contains(github.ref, '-rc') }}"
+          outputFile: .github/release-notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        if: success() && startsWith(github.ref, 'refs/tags/')
+        with:
+          version: latest
+          args: release --release-notes .github/release-notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
