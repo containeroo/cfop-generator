@@ -1,7 +1,6 @@
 package main
 
 import (
-	"embed"
 	"flag"
 	"fmt"
 	"io"
@@ -16,18 +15,54 @@ type DNSRecord struct {
 	Type    string
 	TTL     string
 	Content string
+	Proxied bool
 }
 
-var zonefilePath string
+var (
+	zonefilePath string
+	proxied      bool
+)
 
-const zonefileParseRegex string = `(.*)\s(\d+)\sIN\s([A-Z]+)\s(.*)`
-
-//go:embed dnsrecord.yaml.tmpl
-var dnsrecordTemplate embed.FS
+const (
+	zonefileParseRegex string = `(.*)\s(\d+)\sIN\s([A-Z]+)\s(.*)`
+	dnsrecordTemplate  string = `
+---
+apiVersion: cloudflare-operator.io/v1
+kind: DNSRecord
+metadata:
+  name: {{ .Name | cleanName }}
+spec:
+  name: {{ .Name }}
+  proxied: {{ .Proxied }}
+  ttl: {{ .TTL }}
+  type: {{ .Type }}
+{{- if and (ne .Type "SRV") (ne .Type "MX") }}
+  content: {{ .Content | trimDot }}
+{{- end }}
+{{- if (eq .Type "SRV") }}
+{{- $d := split .Content " " }}
+  data:
+    priority: {{ index $d 0 }}
+    weight: {{ index $d 1 }}
+    port: {{ index $d 2 }}
+    target: {{ index $d 3 | trimDot }}
+{{- end }}
+{{- if (eq .Type "MX") }}
+{{ $d := split .Content " " }}
+  priority: {{ index $d 0 }}
+  content: {{ index $d 1 | trimDot }}
+{{- end }}`
+)
 
 func init() {
 	flag.StringVar(&zonefilePath, "file", "", "Path to the exported zonefile")
+	flag.BoolVar(&proxied, "proxied", true, "Whether to set proxied to true")
 	flag.Parse()
+
+	if zonefilePath == "" {
+		fmt.Fprintf(os.Stderr, "flag -file is required\n")
+		os.Exit(1)
+	}
 }
 
 func run(out io.Writer) error {
@@ -56,6 +91,7 @@ func run(out io.Writer) error {
 				Type:    recordType,
 				TTL:     ttl,
 				Content: content,
+				Proxied: proxied,
 			}
 
 			records = append(records, record)
@@ -74,7 +110,7 @@ func run(out io.Writer) error {
 		},
 	}
 
-	tmpl, err := template.New("dnsrecord.yaml.tmpl").Funcs(funcMap).ParseFS(dnsrecordTemplate, "dnsrecord.yaml.tmpl")
+	tmpl, err := template.New("dnsrecord.yaml.tmpl").Funcs(funcMap).Parse(dnsrecordTemplate)
 
 	for _, record := range records {
 		if err != nil {
