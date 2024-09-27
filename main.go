@@ -56,9 +56,9 @@ spec:
 {{- end }}`
 )
 
-func init() {
+func parseFlags() {
 	flag.StringVar(&zonefilePath, "file", "", "Path to the exported zonefile")
-	flag.BoolVar(&proxied, "proxied", true, "Whether to set proxied to true")
+	flag.BoolVar(&proxied, "proxied", true, "Whether the records should be proxied")
 	flag.Parse()
 
 	if zonefilePath == "" {
@@ -67,12 +67,7 @@ func init() {
 	}
 }
 
-func run(out io.Writer) error {
-	zonefile, err := os.ReadFile(zonefilePath)
-	if err != nil {
-		return err
-	}
-
+func parseZonefile(zonefile []byte) []DNSRecord {
 	regex := regexp.MustCompile(zonefileParseRegex)
 
 	var records []DNSRecord
@@ -100,6 +95,10 @@ func run(out io.Writer) error {
 		}
 	}
 
+	return records
+}
+
+func renderTemplate(out io.Writer, records []DNSRecord) error {
 	funcMap := template.FuncMap{
 		"split": strings.Split,
 		"trimDot": func(s string) string {
@@ -127,7 +126,16 @@ func run(out io.Writer) error {
 }
 
 func main() {
-	if err := run(os.Stdout); err != nil {
+	parseFlags()
+
+	zonefile, err := os.ReadFile(zonefilePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+		os.Exit(1)
+	}
+
+	records := parseZonefile(zonefile)
+	if err := renderTemplate(os.Stdout, records); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
