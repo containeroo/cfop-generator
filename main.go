@@ -26,6 +26,7 @@ var (
 const (
 	zonefileParseRegex string = `(.*)\s(\d+)\sIN\s([A-Z]+)\s(.*)`
 	dnsrecordTemplate  string = `
+{{- range . }}
 ---
 apiVersion: cloudflare-operator.io/v1
 kind: DNSRecord
@@ -51,6 +52,7 @@ spec:
 {{ $d := split .Content " " }}
   priority: {{ index $d 0 }}
   content: {{ index $d 1 | trimDot }}
+{{- end }}
 {{- end }}`
 )
 
@@ -106,21 +108,19 @@ func run(out io.Writer) error {
 		"cleanName": func(s string) string {
 			noDots := strings.ReplaceAll(s, ".", "-")
 			noUnderscores := strings.ReplaceAll(noDots, "_", "-")
-			return noUnderscores
+			noAsterisks := strings.ReplaceAll(noUnderscores, "*", "-")
+			return noAsterisks
 		},
 	}
 
 	tmpl, err := template.New("dnsrecord.yaml.tmpl").Funcs(funcMap).Parse(dnsrecordTemplate)
+	if err != nil {
+		return err
+	}
 
-	for _, record := range records {
-		if err != nil {
-			return err
-		}
-
-		err = tmpl.Execute(out, record)
-		if err != nil {
-			return err
-		}
+	err = tmpl.Execute(out, records)
+	if err != nil {
+		return err
 	}
 
 	return nil
