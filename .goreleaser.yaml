@@ -5,29 +5,40 @@ before:
   hooks:
     - go mod tidy
 builds:
-  - main: ./main.go
+  - id: cfop-generator
+    main: ./main.go
+    binary: cfop-generator
     env:
       - CGO_ENABLED=0
     goos:
       - linux
       - darwin
-      - windows
     goarch:
       - amd64
       - arm64
-      - arm
-brews:
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README*
+      - LICENSE*
+      - completions/*
+checksum:
+  name_template: checksums.txt
+homebrew_casks:
   - name: cfop-generator
     repository:
       owner: containeroo
       name: homebrew-tap
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
-    directory: Formula
+    directory: Casks
     homepage: https://containeroo.ch
     description: CLI tool to convert exported Cloudflare zones to cloudflare-operator DNSRecord objects
-    license: GNU General Public License v3.0
-    dependencies:
-      - name: go
-        type: optional
-    install: |-
-      bin.install "cfop-generator"
+    license: GPL-3.0-only
+    binaries:
+      - cfop-generator
+    completions:
+      bash: completions/cfop-generator.bash
+      zsh: completions/cfop-generator.zsh

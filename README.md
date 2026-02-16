@@ -1,6 +1,84 @@
 # cfop-generator
 
-This tool can be used in conjunction with [cloudflare-operator](https://github.com/containeroo/cloudflare-operator).
+`cfop-generator` converts a Cloudflare zone export file into Cloudflare Operator `DNSRecord` YAML manifests.
 
-Check out [the documentation](https://containeroo.ch/docs/cloudflare-operator/guides/migration/)
-for more information on how to use this tool.
+## Requirements
+
+- Go `1.26.0+` if building from source.
+- A Cloudflare zone export file (plain text) as input.
+
+## Install
+
+### Build from source
+
+```bash
+go install github.com/containeroo/cfop-generator@latest
+```
+
+### Run locally from this repository
+
+```bash
+go run . -file ./testdata/example.com.txt
+```
+
+## Auth and setup
+
+- `cfop-generator` does not call Cloudflare APIs and does not require API credentials.
+- Authentication is handled later by the controller/operator that applies the generated YAML.
+- Export your zone file from Cloudflare first, then pass it with `-file`.
+
+## Usage
+
+```bash
+cfop-generator -file <zonefile> [-proxied=true|false] [-output <path>]
+cfop-generator completion bash|zsh
+cfop-generator version
+```
+
+### Important flags
+
+- `-file` (required): path to the exported zone file.
+- `-proxied` (default `true`): sets `spec.proxied` for generated records.
+- `-output` (optional): writes output to a file using file mode `0600`.
+
+### Examples
+
+```bash
+# Print YAML to stdout
+cfop-generator -file ./example.com.txt
+
+# Disable proxying in generated records
+cfop-generator -file ./example.com.txt -proxied=false
+
+# Write secure output file (mode 0600)
+cfop-generator -file ./example.com.txt -output ./records.yaml
+```
+
+## Shell completion
+
+### Bash
+
+```bash
+cfop-generator completion bash > /usr/local/etc/bash_completion.d/cfop-generator
+source /usr/local/etc/bash_completion.d/cfop-generator
+```
+
+### Zsh
+
+```bash
+mkdir -p "${fpath[1]}"
+cfop-generator completion zsh > "${fpath[1]}/_cfop-generator"
+autoload -Uz compinit && compinit
+```
+
+## Security notes
+
+- Zone files can contain infrastructure details; treat them as sensitive.
+- Prefer `-output` for local files so generated manifests are written with restrictive permissions (`0600`).
+- Review generated manifests before committing or sharing them.
+
+## Behavior notes
+
+- `SOA` and `NS` records are skipped.
+- `MX` and `SRV` records are validated for expected field counts.
+- Output order is deterministic for stable diffs and reproducible output.
