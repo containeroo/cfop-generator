@@ -4,6 +4,7 @@ project_name: cfop-generator
 before:
   hooks:
     - go mod tidy
+    - ./scripts/generate-completions.sh
 builds:
   - id: cfop-generator
     main: ./main.go
