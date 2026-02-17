@@ -32,7 +32,7 @@ type convertConfig struct {
 const (
 	cliName           = "cfop-generator"
 	zonefileParseExp  = `^(\S+)\s+(\d+)\s+IN\s+([A-Z]+)\s+(.+)$`
-	version           = "v0.1.0"
+	version           = "v0.1.1"
 	dnsrecordTemplate = `
 {{- range . }}
 ---
